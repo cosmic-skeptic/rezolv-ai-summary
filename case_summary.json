@@ -1,0 +1,92 @@
+[
+  {
+    "case_ref": "CR_001_RAJESH",
+    "name": "Rajesh Kumar",
+    "registered_lat": 19.1136,
+    "registered_lng": 72.8697,
+    "n_dispositions": 3,
+    "n_payments": 25,
+    "n_bom": 12
+  },
+  {
+    "case_ref": "CR_002_PRIYA",
+    "name": "Priya Sharma",
+    "registered_lat": 19.076,
+    "registered_lng": 72.8777,
+    "n_dispositions": 200,
+    "n_payments": 10,
+    "n_bom": 4
+  },
+  {
+    "case_ref": "CR_003_AMIT",
+    "name": "Amit Patel",
+    "registered_lat": 18.5204,
+    "registered_lng": 73.8567,
+    "n_dispositions": 200,
+    "n_payments": 18,
+    "n_bom": 4
+  },
+  {
+    "case_ref": "CR_004_SUNITA",
+    "name": "Sunita Desai",
+    "registered_lat": 12.9716,
+    "registered_lng": 77.5946,
+    "n_dispositions": 3,
+    "n_payments": 5,
+    "n_bom": 30
+  },
+  {
+    "case_ref": "CR_005_VIKRAM",
+    "name": "Vikram Singh",
+    "registered_lat": 13.0827,
+    "registered_lng": 80.2707,
+    "n_dispositions": 200,
+    "n_payments": 25,
+    "n_bom": 30
+  },
+  {
+    "case_ref": "CR_006_MEERA",
+    "name": "Meera Nair",
+    "registered_lat": 28.6139,
+    "registered_lng": 77.209,
+    "n_dispositions": 16,
+    "n_payments": 18,
+    "n_bom": 18
+  },
+  {
+    "case_ref": "CR_007_ARJUN",
+    "name": "Arjun Reddy",
+    "registered_lat": 17.385,
+    "registered_lng": 78.4867,
+    "n_dispositions": 15,
+    "n_payments": 25,
+    "n_bom": 30
+  },
+  {
+    "case_ref": "CR_008_KAVITA",
+    "name": "Kavita Joshi",
+    "registered_lat": 22.5726,
+    "registered_lng": 88.3639,
+    "n_dispositions": 121,
+    "n_payments": 2,
+    "n_bom": 24
+  },
+  {
+    "case_ref": "CR_009_SANJAY",
+    "name": "Sanjay Verma",
+    "registered_lat": 23.0225,
+    "registered_lng": 72.5714,
+    "n_dispositions": 3,
+    "n_payments": 5,
+    "n_bom": 12
+  },
+  {
+    "case_ref": "CR_010_POOJA",
+    "name": "Pooja Iyer",
+    "registered_lat": 26.9124,
+    "registered_lng": 75.7873,
+    "n_dispositions": 60,
+    "n_payments": 25,
+    "n_bom": 30
+  }
+]
