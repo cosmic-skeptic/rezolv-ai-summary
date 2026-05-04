@@ -860,7 +860,7 @@ with tab_pipeline:
                         stage2_model_id,
                         stage2_provider,
                         stage2_key,
-                        max_tokens=2048,
+                        max_tokens=5000,
                     )
                     st.session_state.stage2_output = output
                     st.session_state.stage2_meta = meta
