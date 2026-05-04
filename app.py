@@ -335,8 +335,11 @@ MODEL_REGISTRY = [
     ("GPT-4o",                           "gpt-4o",                  "openai"),
     ("GPT-4o mini (fast/cheap)",         "gpt-4o-mini",             "openai"),
     # Google
-    ("Gemini 2.5 Pro",                   "gemini-2.5-pro",          "google"),
-    ("Gemini 2.5 Flash (fast/cheap)",    "gemini-2.5-flash",        "google"),
+    ("Gemini 3 Pro (best quality)",     "gemini-3.1-pro-preview",       "google"),
+    ("Gemini 3 Flash (balanced)",       "gemini-3-flash-preview",       "google"),
+    ("Gemini 2.5 Pro",                  "gemini-2.5-pro",               "google"),
+    ("Gemini 2.5 Flash (fast/cheap)",   "gemini-2.5-flash",             "google"),
+]
 ]
 
 MODEL_LABELS = [m[0] for m in MODEL_REGISTRY]
@@ -860,7 +863,7 @@ with tab_pipeline:
                         stage2_model_id,
                         stage2_provider,
                         stage2_key,
-                        max_tokens=5000,
+                        max_tokens=4096,
                     )
                     st.session_state.stage2_output = output
                     st.session_state.stage2_meta = meta
