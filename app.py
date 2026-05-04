@@ -340,7 +340,6 @@ MODEL_REGISTRY = [
     ("Gemini 2.5 Pro",                  "gemini-2.5-pro",               "google"),
     ("Gemini 2.5 Flash (fast/cheap)",   "gemini-2.5-flash",             "google"),
 ]
-]
 
 MODEL_LABELS = [m[0] for m in MODEL_REGISTRY]
 MODEL_BY_LABEL = {m[0]: (m[1], m[2]) for m in MODEL_REGISTRY}
