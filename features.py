@@ -651,6 +651,88 @@ def resolve_address_intelligence(pairs, registered_lat, registered_lng):
     }
 
 
+def resolve_best_payment_address(payments_df, dispositions_df, case_ref):
+    """For each of the last 3 SUCCESS payments, find the temporally-closest
+    disposition (within ±7 days) and use its address_ref_number as a proxy for
+    where the money came from. If 2 of 3 share the same address, that's the
+    'best collection address'.
+
+    Returns:
+        {
+          "addresses_seen": [...],      # last 3 payments' inferred addresses
+          "dominant_address_ref": "ADR_5_01" | None,
+          "dominant_count": 2 | 3 | 0,
+          "confidence": "high" | "medium" | "none",
+          "last_3_payment_dates": [...]
+        }
+    """
+    case_pay = payments_df[
+        (payments_df["case_ref_number"] == case_ref)
+        & (payments_df["status"] == "SUCCESS")
+    ].copy()
+
+    if len(case_pay) < 2:
+        return None
+
+    case_pay["payment_datetime"] = pd.to_datetime(case_pay["payment_datetime"])
+    case_pay = case_pay.sort_values("payment_datetime", ascending=False)
+    last_3 = case_pay.head(3)
+
+    case_disp = dispositions_df[
+        dispositions_df["case_ref_number"] == case_ref
+    ].copy()
+    if len(case_disp) == 0:
+        return None
+    case_disp["created_at"] = pd.to_datetime(case_disp["created_at"])
+
+    addresses = []
+    payment_dates = []
+    for _, p in last_3.iterrows():
+        pdt = p["payment_datetime"]
+        # Find dispositions within ±7 days, prefer field-source ones
+        window = case_disp[
+            (case_disp["created_at"] >= pdt - timedelta(days=7))
+            & (case_disp["created_at"] <= pdt + timedelta(days=7))
+        ].copy()
+        if len(window) == 0:
+            continue
+        # Prefer field-sourced dispositions if available
+        field_window = window[window["source"] == "FIELD"]
+        chosen = field_window if len(field_window) > 0 else window
+        # Take the temporally-closest one
+        chosen = chosen.copy()
+        chosen["dt_distance"] = (chosen["created_at"] - pdt).abs()
+        chosen = chosen.sort_values("dt_distance")
+        if len(chosen) == 0:
+            continue
+        addr_ref = chosen.iloc[0].get("address_ref_number")
+        if addr_ref:
+            addresses.append(addr_ref)
+            payment_dates.append(pdt.isoformat())
+
+    if not addresses:
+        return None
+
+    # Count dominance
+    from collections import Counter
+    counts = Counter(addresses)
+    most_common, dominant_count = counts.most_common(1)[0]
+
+    if dominant_count >= 2 and len(addresses) >= 2:
+        confidence = "high" if dominant_count == 3 else "medium"
+    else:
+        confidence = "none"
+
+    return {
+        "addresses_seen": addresses,
+        "dominant_address_ref": most_common if dominant_count >= 2 else None,
+        "dominant_count": dominant_count,
+        "n_payments_resolved": len(addresses),
+        "confidence": confidence,
+        "last_3_payment_dates": payment_dates,
+    }
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Main entry point
 # ─────────────────────────────────────────────────────────────────────────────
@@ -700,6 +782,9 @@ def build_features(case_ref, dispositions_df, payments_df, bom_df,
     features["address_intelligence_resolved"] = resolve_address_intelligence(
         features["dispositions"]["address_intelligence_pairs"],
         registered_lat, registered_lng
+    )
+    features["best_payment_address"] = resolve_best_payment_address(
+        payments_df, dispositions_df, case_ref
     )
 
     return to_serializable(features)
