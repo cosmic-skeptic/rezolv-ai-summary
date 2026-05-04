@@ -44,19 +44,21 @@ STATIC BASE SEVERITY TABLE
 ═══════════════════════════════════════════════════════════════════════════════
 Apply these base severity values to each state. These are fixed — never invent values.
 
-ACCOUNT FREEZE (overrides everything — see special rule below)
-  freeze_death_permanent ........... 100
-  freeze_dnc_permanent ............. 100
-  freeze_dnc_temporary_active ...... 100
-  freeze_dif_permanent_recent ...... 100
-  freeze_dif_permanent_aged ......... 95
-  freeze_dnc_expired ................ 30
+ACCOUNT FREEZE  (DEATH/DIF Permanent override; DNC is informational only)
+  freeze_death_permanent ........... 100  (BLOCKING — see freeze override below)
+  freeze_dif_permanent_recent ...... 100  (BLOCKING — see freeze override below)
+  freeze_dif_permanent_aged ......... 95  (BLOCKING — see freeze override below)
+  freeze_dnc_permanent .............. 40  (informational — note customer preference)
+  freeze_dnc_temporary_active ....... 40  (informational — note window expiry date)
+  freeze_dnc_expired ................ 15  (informational — note window has passed)
   no_freeze .......................... 0
 
-REFUSAL / FRAUD
-  refusal_escalation_flag = critical .. 95
-  refusal_escalation_flag = caution ... 50
-  refusal_escalation_flag = clear ...... 0
+REFUSAL / FRAUD / RESISTANCE  (merged trigger)
+  customer_resistance_signals = refused .... 90  (RTP/FRAUD pattern)
+  customer_resistance_signals = unable ..... 55  (UTP-driven hardship)
+  customer_resistance_signals = evasive .... 50  (doubtful trail)
+  customer_resistance_signals = combined ... 80  (2+ of the above co-occur)
+  customer_resistance_signals = clear ....... 0
 
 LEGAL STAGE
   legal_case_filed ................. 90
@@ -83,6 +85,12 @@ ADDRESS INTELLIGENCE
   address_likely_correct ............ 5
   not_evaluable ..................... 0
 
+BEST PAYMENT ADDRESS
+  payment_hub_high_confidence ...... 35  (3 of 3 last payments same address)
+  payment_hub_medium_confidence .... 25  (2 of 3 last payments same address)
+  no_dominant_address ............... 0
+  not_evaluable ..................... 0
+
 PTP / FPTP HONOUR RATE
   theatre .......................... 70
   unreliable ....................... 55
@@ -95,21 +103,10 @@ DIF / DEATH RECURRENCE
   single_event ..................... 25
   none .............................. 0
 
-DOUBTFUL SENTIMENT TRAIL
-  repeated_doubt ................... 60
-  single_doubt ..................... 30
-  none .............................. 0
-
 NO-CONTACT RATE
   ghost_account .................... 65
   mostly_unreachable ............... 40
   reachable ......................... 5
-
-UTP RECURRENCE PATTERN
-  consistent_hardship .............. 55
-  rotating_reasons ................. 50
-  mixed ............................ 30
-  not_evaluable ..................... 0
 
 TPC RATIO
   high_tpc ......................... 50
@@ -168,7 +165,7 @@ Apply ALL matching rules. If multiple amplifiers fire on the same indicator, the
 
 A1. ptp_fptp_honour_rate amplified
     IF ptp_fptp_honour_rate state ∈ [unreliable, theatre]
-    AND refusal_escalation_flag state = critical
+    AND customer_resistance_signals state ∈ [refused, combined]
     THEN: amplifier = "amplified"
           reason: "Combined with refusal flags, the gap isn't just unreliability."
 
@@ -190,28 +187,15 @@ A4. tpc_ratio amplified
     THEN: amplifier = "amplified"
           reason: "Customer is reachable through family but not directly — likely active dodging."
 
-A5. doubtful_sentiment_trail amplified
-    IF doubtful_sentiment_trail state = repeated_doubt
-    AND ptp_fptp_honour_rate state IN [unreliable, theatre]
+A5. customer_resistance_signals amplified (resistance + broken promises)
+    IF customer_resistance_signals state ∈ [evasive, combined]
+    AND ptp_fptp_honour_rate state ∈ [unreliable, theatre]
     THEN: amplifier = "amplified"
-          reason: "Recent evasiveness compounds the broken-promise pattern."
+          reason: "Recent evasiveness or refusal compounds the broken-promise pattern."
 
-A6. utp_recurrence_pattern muted (when likely opportunism, not hardship)
-    IF utp_recurrence_pattern state = rotating_reasons
-    AND refusal_escalation_flag state = clear
-    AND ptp_fptp_honour_rate state ∈ [reliable, partial_trust]
-    THEN: amplifier = "muted"
-          reason: "Rotating reasons less alarming when other signals are clean."
-
-A7. language_barrier_persistence amplified
-    IF language_barrier_persistence state = persistent_barrier
-    AND no_contact_rate state IN [ghost_account, mostly_unreachable]
-    THEN: amplifier = "amplified"
-          reason: "Language gap may be why contact has failed."
-
-A8. predictable_payment_cycle muted
+A6. predictable_payment_cycle muted
     IF predictable_payment_cycle state IN [predictable_cycle_with_day, predictable_cycle_no_day]
-    AND refusal_escalation_flag state = critical
+    AND customer_resistance_signals state ∈ [refused, combined]
     THEN: amplifier = "muted"
           reason: "Cycle insight less useful when refusal escalation overshadows."
 
@@ -230,11 +214,11 @@ B2. settlement_intent_score muted (single recent event, may be one episode)
     THEN: amplifier = "muted"
           reason: "Single recent settlement mention — may be one conversation, not a sustained ask."
 
-B3. doubtful_sentiment_trail amplified (most recent within 7 days)
-    IF state = repeated_doubt
-    AND latest_date is within 7 days of today
+B3. customer_resistance_signals amplified (recent escalation)
+    IF state ∈ [refused, combined, evasive]
+    AND any underlying disposition (RTP / FRAUD / DOUBTFUL) is within 14 days of today
     THEN: amplifier = "amplified"
-          reason: "Most recent doubtful flag is fresh — pattern is active right now."
+          reason: "Most recent resistance signal is fresh — pattern is active right now."
 
 B4. dif_death_recurrence amplified (clustered)
     IF state = recurrence_flagged
@@ -254,32 +238,25 @@ B6. ptp_fptp_honour_rate muted (small sample edge case)
     THEN: amplifier = "muted"
           reason: "Sample size is small — pattern may not hold."
 
-B7. refusal_escalation_flag amplified (recent)
-    IF state = critical
-    AND latest_escalation_date is within 30 days of today
-    THEN: amplifier = "amplified"
-          reason: "Most recent refusal/fraud is fresh — risk is current, not historical."
-
-B8. refusal_escalation_flag muted (aged)
-    IF state = critical
-    AND latest_escalation_date is older than 180 days from today
-    THEN: amplifier = "muted"
-          reason: "Most recent escalation is old — situation may have shifted."
-
-B9. address_offset_detected amplified (large offset)
+B7. address_offset_detected amplified (large offset)
     IF state = address_offset_detected
     AND distance_m ≥ 1000
     THEN: amplifier = "amplified"
           reason: "Customer's actual location is over a kilometre from registered address."
 
+B8. best_payment_address amplified (recent confirmation)
+    IF state = payment_hub_high_confidence
+    AND last payment in best_payment_address.last_3_payment_dates is within 30 days
+    THEN: amplifier = "amplified"
+          reason: "Pattern is recent — that address is currently active for collection."
+
 If no amplifier rule matches an indicator, set amplifier = "neutral" and omit amplifier_reason (or set to null).
 
 ═══════════════════════════════════════════════════════════════════════════════
-FREEZE OVERRIDE (special rule)
+FREEZE OVERRIDE (special rule — DEATH and DIF Permanent only)
 ═══════════════════════════════════════════════════════════════════════════════
 If account_freeze state is one of:
-  [freeze_death_permanent, freeze_dnc_permanent, freeze_dnc_temporary_active,
-   freeze_dif_permanent_recent, freeze_dif_permanent_aged]
+  [freeze_death_permanent, freeze_dif_permanent_recent, freeze_dif_permanent_aged]
 
 THEN apply this override AFTER computing all other indicators:
 1. account_freeze severity stays at its base value (95 or 100).
@@ -289,7 +266,7 @@ THEN apply this override AFTER computing all other indicators:
 
 This is the only case where ranked_top is forced to a single entry. The writer needs to know the freeze is the entire story.
 
-freeze_dnc_expired does NOT trigger this override. It's just informational.
+DNC states (freeze_dnc_permanent, freeze_dnc_temporary_active, freeze_dnc_expired) do NOT trigger this override. DNC is informational — it surfaces alongside other indicators so the agent knows to handle the visit appropriately, but doesn't block visit decisions on its own. The writer will fold DNC into the briefing as context, not as a blocker.
 
 ═══════════════════════════════════════════════════════════════════════════════
 INDICATOR RULES (state selection — fully mechanical)
@@ -367,12 +344,29 @@ total = features.dispositions.paid_count + features.dispositions.partial_paid_co
   - end_month → pays_end_month
 - Otherwise → no_clear_pattern
 
-────────── 11. utp_recurrence_pattern ──────────
-features.dispositions.utp_total:
-- < 3 → not_evaluable, severity=0
-- top reason ≥ 60% → consistent_hardship
-- 40–59% → mixed
-- < 40% → rotating_reasons
+────────── 11. customer_resistance_signals (MERGED — replaces former utp/doubtful/refusal triggers) ──────────
+This single trigger captures any signal that the customer is refusing, unable, or evasive about paying. Compute three sub-flags first, then combine:
+
+  REFUSED flag fires if:
+    features.dispositions.fraud_count ≥ 1 OR features.dispositions.rtp_count ≥ 1
+    (Any fraud, or any refuse-to-pay disposition)
+
+  UNABLE flag fires if:
+    features.dispositions.utp_total ≥ 3
+    (Multiple unable-to-pay dispositions — genuine hardship pattern)
+
+  EVASIVE flag fires if:
+    features.dispositions.doubtful_count_60d ≥ 1
+    (Recent agent observation of evasive behaviour)
+
+State selection:
+  - If 2 or more of the three flags fire → state = "combined"
+  - Else if REFUSED fires alone → state = "refused"
+  - Else if UNABLE fires alone → state = "unable"
+  - Else if EVASIVE fires alone → state = "evasive"
+  - Otherwise → state = "clear"
+
+Evidence object should include all three flag booleans plus the underlying counts so the writer can craft an appropriate message. Sample size: any history.
 
 ────────── 12. settlement_intent_score ──────────
 features.dispositions.settlement_total:
@@ -380,11 +374,13 @@ features.dispositions.settlement_total:
 - 1 → warm_intent
 - 0 → no_intent
 
-────────── 13. doubtful_sentiment_trail ──────────
-features.dispositions.doubtful_count_60d:
-- ≥ 2 → repeated_doubt
-- 1 → single_doubt
-- 0 → none
+────────── 13. best_payment_address (NEW) ──────────
+features.cross_resolved.best_payment_address (or null if not enough data):
+- null OR confidence == "none" → not_evaluable, severity=0
+- confidence == "high" → payment_hub_high_confidence (3 of 3 last payments at same address)
+- confidence == "medium" → payment_hub_medium_confidence (2 of 3 last payments at same address)
+
+The dominant_address_ref tells you WHERE collection has been most successful. Pass it through in evidence so the writer can suggest visiting that address.
 
 ────────── 14. best_contact_hour ──────────
 features.dispositions.rpc_count:
@@ -405,12 +401,6 @@ features.dispositions.contact_type_total:
 - nc_pct ≥ 70 → ghost_account
 - 40–69 → mostly_unreachable
 - < 40 → reachable
-
-────────── 17. refusal_escalation_flag ──────────
-features.dispositions:
-- fraud_count ≥ 1 OR rtp_count ≥ 2 → critical
-- rtp_count == 1 AND fraud_count == 0 → caution
-- otherwise → clear
 
 ═══════════════════════════════════════════════════════════════════════════════
 RANKING THE TOP
@@ -449,6 +439,7 @@ Return ONLY this JSON. No markdown fences, no preamble.
     },
     "predictable_payment_cycle": { ... },
     "address_intelligence": { ... },
+    "best_payment_address": { ... },
     "legal_stage_indicator": { ... },
     "dif_death_recurrence": { ... },
     "ptp_fptp_honour_rate": { ... },
@@ -456,13 +447,11 @@ Return ONLY this JSON. No markdown fences, no preamble.
     "self_pay_independence": { ... },
     "partial_payment_dependency": { ... },
     "payment_day_pattern": { ... },
-    "utp_recurrence_pattern": { ... },
+    "customer_resistance_signals": { ... },
     "settlement_intent_score": { ... },
-    "doubtful_sentiment_trail": { ... },
     "best_contact_hour": { ... },
     "tpc_ratio": { ... },
-    "no_contact_rate": { ... },
-    "refusal_escalation_flag": { ... }
+    "no_contact_rate": { ... }
   },
 
   "ranked_top": [
@@ -473,12 +462,12 @@ Return ONLY this JSON. No markdown fences, no preamble.
 ═══════════════════════════════════════════════════════════════════════════════
 SELF-CHECK BEFORE OUTPUT
 ═══════════════════════════════════════════════════════════════════════════════
-1. All 17 indicators present in indicators object.
+1. All 15 indicators present in indicators object (defaulter_type_classifier, predictable_payment_cycle, address_intelligence, best_payment_address, legal_stage_indicator, dif_death_recurrence, ptp_fptp_honour_rate, account_freeze, self_pay_independence, partial_payment_dependency, payment_day_pattern, customer_resistance_signals, settlement_intent_score, best_contact_hour, tpc_ratio, no_contact_rate).
 2. Every state is one of the enumerated values for that indicator.
 3. Every severity is an integer 0-100.
 4. amplifier_reason is non-null whenever amplifier ≠ "neutral".
 5. ranked_top excludes default/clear states and is sorted by final severity desc.
-6. If freeze override fired, ranked_top has exactly one entry.
+6. If DEATH/DIF freeze override fired, ranked_top has exactly one entry. DNC states do NOT trigger this.
 7. No prose anywhere — no agent-facing language, no narrative, no synthesis.
 8. JSON is valid. No markdown fences.
 
