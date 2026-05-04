@@ -366,8 +366,8 @@ def get_provider_key(provider, manual_keys):
     return os.environ.get(key_name, "")
 
 
-def call_llm(system_prompt, user_message, model_id, provider, api_key, max_tokens=4096):
-    """Unified LLM caller — dispatches to the right provider SDK.
+def _llm(system_prompt, user_message, model_id, provider, api_key, max_tokens=4096):
+    """Unified LLM er — dispatches to the right provider SDK.
     Returns (parsed_json, meta). On error, parsed_json contains error key."""
     t0 = time.time()
 
@@ -417,17 +417,16 @@ def call_llm(system_prompt, user_message, model_id, provider, api_key, max_token
                     "model": model_id, "provider": provider,
                 }
             genai.configure(api_key=api_key)
-            # Gemini takes system instruction at model init, user msg at generate
             model = genai.GenerativeModel(
                 model_name=model_id,
                 system_instruction=system_prompt,
             )
+            # FORCE a high token count for the Analyser stage
             response = model.generate_content(
                 user_message,
-                generation_config={"max_output_tokens": max_tokens},
+                generation_config={"max_output_tokens": 4096}, # FORCED HIGH
             )
             raw = response.text.strip()
-            # Gemini reports usage on response
             input_tokens = getattr(response.usage_metadata, "prompt_token_count", 0)
             output_tokens = getattr(response.usage_metadata, "candidates_token_count", 0)
 
@@ -460,7 +459,7 @@ def call_llm(system_prompt, user_message, model_id, provider, api_key, max_token
             }
 
     except Exception as e:
-        return {"error": "api_call_failed", "exception": str(e)}, {
+        return {"error": "api__failed", "exception": str(e)}, {
             "latency_s": round(time.time() - t0, 2),
             "error": "api",
             "model": model_id,
@@ -780,7 +779,7 @@ with tab_pipeline:
             else:
                 with st.spinner(f"Running analyser ({stage1_model_label})..."):
                     user_msg = build_analyser_user_msg(current_features)
-                    output, meta = call_llm(
+                    output, meta = _llm(
                         st.session_state.analyser_prompt,
                         user_msg,
                         stage1_model_id,
@@ -856,7 +855,7 @@ with tab_pipeline:
             else:
                 with st.spinner(f"Running writer ({stage2_model_label})..."):
                     user_msg = build_writer_user_msg(st.session_state.stage1_output)
-                    output, meta = call_llm(
+                    output, meta = _llm(
                         st.session_state.writer_prompt,
                         user_msg,
                         stage2_model_id,
@@ -1190,7 +1189,7 @@ INDICATOR_CATALOGUE = [
     {
         "id": "payment_day_pattern",
         "category": "Payment behaviour",
-        "description": "Day-of-month bucket where the customer typically pays. Useful for timing follow-ups and visits.",
+        "description": "Day-of-month bucket where the customer typiy pays. Useful for timing follow-ups and visits.",
         "states": [
             ("pays_early_month", 25, "≥70% of payments in days 1-7 — likely salaried, paid on 1st."),
             ("pays_mid_month", 25, "≥70% in days 8-24 — variable salary or business income."),
